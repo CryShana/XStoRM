@@ -25,13 +25,16 @@ const string FUNCTION = "_c";
 var output_text = ProcessXStoRM(input);
 
 output_text = $$"""
+                #if (defined({{class_name}}_INCLUDE) == false)
+                #define {{class_name}}_INCLUDE
                 class {{class_name}} { 
                 void {{FUNCTION}}(string l = ""){rmTriggerAddScriptLine(l);}
                 void RegisterTriggers()
                 {
                 {{output_text}}
                 }
-                };   
+                };
+                #endif   
                 """;
 
 File.WriteAllText(output, output_text);
@@ -67,13 +70,41 @@ string ProcessXStoRM(string file_path, bool wrap = true)
 
     if (wrap)
     {
+        // HANDLE DELAYED RULE ACTIVATIONS
+        var delayedActivations = Helpers.GetDelayedRuleActivationRgx().Matches(text_with_includes);
+        if (delayedActivations.Count > 0)
+        {
+            text_with_includes = Helpers.GetDelayedRuleActivationRgx()
+                .Replace(text_with_includes, "__delayedRuleActivations.add($1);");
+
+            // add this on top
+            text_with_includes = $$"""
+            string[] __delayedRuleActivations = default;
+            rule __DelayedRuleActivations
+            highFrequency
+            active
+            {
+                for(int i = 0; i < __delayedRuleActivations.size(); i++) 
+                {
+                    string triggerName = __delayedRuleActivations[i];
+                    xsEnableRule(triggerName);
+                }
+                __delayedRuleActivations.clear();
+            }
+            
+            {{text_with_includes}}
+            """;         
+
+            Console.WriteLine($"{delayedActivations.Count} delayed rule activations replaced. Added new rule to activate them.");
+        }
+
         // DO THE WRAPPING
-        StringBuilder builder = new();
+        var builder = new StringBuilder();
         var new_lines = text_with_includes.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         foreach (var line in new_lines)
         {
             var corrected_line = line.Replace("\r", "");
-            builder.AppendLine($"{FUNCTION}(\"{EscapeText(corrected_line)}\");");
+            builder.AppendLine($"{FUNCTION}(\"{Helpers.EscapeText(corrected_line)}\");");
         }
         text_with_includes = builder.ToString();
     }
@@ -81,7 +112,3 @@ string ProcessXStoRM(string file_path, bool wrap = true)
     return text_with_includes;
 }
 
-string EscapeText(string text)
-{
-    return text.Replace("\"", "\\\"");
-}

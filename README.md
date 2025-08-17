@@ -13,6 +13,8 @@ Random map scripts can not use any trigger logic, hence you need to wrap them wi
 ```
 Will create a file with following content:
 ```cpp
+#if (defined(MyMod_INCLUDE) == false)
+#define MyMod_INCLUDE
 class MyMod {
 void _c(string l = ""){rmTriggerAddScriptLine(l);}
 void RegisterTriggers()
@@ -26,23 +28,22 @@ _c("{");
 // ...
 }
 };
+#endif
 ```
 ### Applying to all random maps
-If you wish to apply it to all random maps, you can override the `rm_core.xs` file with your own mod and add the include on top to your generated file, then call `RegisterTriggers()` in main:
+If you wish to apply it to all random maps, you can override the core file used random maps, such as `lib2/rm_core.xs` file with your own mod and add the include on top to your generated file, then call `RegisterTriggers()` in main:
 ```cpp
-include "lib/MyMod.xs"; // copied it to lib dir
+include "lib2/MyMod.xs"; // copied it to lib dir
 
 // ...
 
 mutable void main()
 {
-   rmSetShuffleTeams(false);
-   preGenerate();
-   generate();
-   postGenerate();
+   // ...
 
-   // I add the following:
-   MyMod mymod;
+   // I add the following at the end:
+   // "MyMod" is the name of our exported class
+   MyMod mymod;               
    mymod.RegisterTriggers();
 }
 ```
