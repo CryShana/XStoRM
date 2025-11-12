@@ -74,28 +74,20 @@ string ProcessXStoRM(string file_path, bool wrap = true)
         var delayedActivations = Helpers.GetDelayedRuleActivationRgx().Matches(text_with_includes);
         if (delayedActivations.Count > 0)
         {
+            // ensure:
+            // - trDelayedRuleActivation(name...) has 2nd param set to false explicitly
+            // - trDelayedRuleActivation(name,...) follows xsDisableRule(name)
+            // (we dont care if xsDisableRule already exists, otherwise extra analysis is necessary to solve a non-issue)
             text_with_includes = Helpers.GetDelayedRuleActivationRgx()
-                .Replace(text_with_includes, "__delayedRuleActivations.add($1);");
-
-            // add this on top
-            text_with_includes = $$"""
-            string[] __delayedRuleActivations = default;
-            rule __DelayedRuleActivations
-            highFrequency
-            active
-            {
-                for(int i = 0; i < __delayedRuleActivations.size(); i++) 
+                .Replace(text_with_includes, m =>
                 {
-                    string triggerName = __delayedRuleActivations[i];
-                    xsEnableRule(triggerName);
-                }
-                __delayedRuleActivations.clear();
-            }
-            
-            {{text_with_includes}}
-            """;         
+                    var rule_name = m.Groups[1].Value;
+                    return $"""
+                    xsDisableRule({rule_name}); trDelayedRuleActivation({rule_name}, false);
+                    """;
+                });
 
-            Console.WriteLine($"{delayedActivations.Count} delayed rule activations replaced. Added new rule to activate them.");
+            Console.WriteLine($"Ensured correct format for {delayedActivations.Count} delayed rule activations");
         }
 
         // DO THE WRAPPING
